@@ -14,21 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.sling.auth.oauth_client;
+package org.apache.sling.auth.oauth_client.impl;
 
-import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-public interface OAuthTokenRefresher {
+public record OAuthTokens(@Nullable String accessToken, long expiresAt, @Nullable String refreshToken) {
 
-    /**
-     * Refreshes the OAuth tokens based on the supplied refresh token
-     * 
-     * <p>It is the responsibility of the invoker to persist the returned tokens.</p> 
-     * 
-     * @param connection The connection to refresh the tokens for
-     * @param refreshToken An existing refresh token
-     * @return OAuth tokens
-     * @throws OAuthException in case anything goes wrong
-     */
-    @NotNull OAuthTokens refreshTokens(@NotNull ClientConnection connection, @NotNull String refreshToken) throws OAuthException;
 }

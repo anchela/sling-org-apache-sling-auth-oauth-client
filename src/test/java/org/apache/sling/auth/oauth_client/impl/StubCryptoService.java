@@ -14,10 +14,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.sling.auth.oauth_client;
+package org.apache.sling.auth.oauth_client.impl;
 
-import org.jetbrains.annotations.Nullable;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
-public record OidcTokens(@Nullable String accessToken, long expiresAt, @Nullable String refreshToken, @Nullable String idToken) {
-    
+import java.util.Base64;
+
+import org.apache.sling.commons.crypto.CryptoService;
+
+class StubCryptoService implements CryptoService {
+
+    @Override
+    public String encrypt(String plainText) {
+        return Base64.getEncoder().encodeToString(plainText.getBytes(UTF_8));
+    }
+
+    @Override
+    public String decrypt(String cipherText) {
+        return new String(Base64.getDecoder().decode(cipherText), UTF_8);
+    }
+
 }

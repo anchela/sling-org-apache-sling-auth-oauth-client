@@ -14,10 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.sling.auth.oauth_client;
+package org.apache.sling.auth.oauth_client.impl;
 
 import org.apache.sling.api.resource.ResourceResolver;
-import org.jetbrains.annotations.NotNull;
+import org.apache.sling.auth.oauth_client.ClientConnection;
 
 //
 // In terms of what typed objects we expose, there are a number of ways
@@ -40,11 +40,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface OAuthTokenStore {
 
-    @NotNull OAuthToken getAccessToken(@NotNull ClientConnection connection, @NotNull ResourceResolver resolver) throws OAuthException;
+    OAuthToken getAccessToken(ClientConnection connection, ResourceResolver resolver) throws OAuthException;
     
-    @NotNull OAuthToken getRefreshToken(@NotNull ClientConnection connection, @NotNull ResourceResolver resolver) throws OAuthException;
+    OAuthToken getRefreshToken(ClientConnection connection, ResourceResolver resolver) throws OAuthException;
     
-    void persistTokens(@NotNull ClientConnection connection, @NotNull ResourceResolver resolver, @NotNull OAuthTokens tokens) throws OAuthException;
+    void persistTokens(ClientConnection connection, ResourceResolver resolver, OAuthTokens tokens) throws OAuthException;
     
-    void clearAccessToken(@NotNull ClientConnection connection, @NotNull ResourceResolver resolver) throws OAuthException;
+    void clearAccessToken(ClientConnection connection, ResourceResolver resolver) throws OAuthException;
 }
