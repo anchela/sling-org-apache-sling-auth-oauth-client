@@ -21,6 +21,8 @@ package org.apache.sling.auth.oauth_client.impl;
 import org.apache.sling.auth.oauth_client.ClientConnection;
 import org.jetbrains.annotations.NotNull;
 
+import org.jetbrains.annotations.NotNull;
+
 public interface OAuthTokenRefresher {
 
     /**
