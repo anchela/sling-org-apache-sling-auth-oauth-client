@@ -75,6 +75,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -198,7 +199,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             return authInfo;
         }
 
-        //The request is not authenticated. 
+        //The request is not authenticated.
         // 1. Extract nonce cookie and state cookie from the request
         StringBuffer requestURL = request.getRequestURL();
         if ( request.getQueryString() != null )
@@ -257,7 +258,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         // 6. Make the request to userInfo
         String subject = claims.getSubject().getValue();
         OidcAuthCredentials credentials = extractCredentials((OidcConnectionImpl) connection, subject, tokenResponse);
-        
+
         // 7. create authInfo
         authInfo = new AuthenticationInfo(AUTH_TYPE, subject);
         authInfo.put(JcrResourceConstants.AUTHENTICATION_INFO_CREDENTIALS, credentials);
@@ -295,7 +296,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             return userInfoProcessor.process(null, tokenResponse, subject, idp);
         }
     }
-    
+
     private @NotNull Optional<OAuthState> extractClientState(@NotNull AuthorizationResponse authResponse) {
         Optional<OAuthState> clientState = stateManager.toOAuthState(authResponse.getState());
         if (!clientState.isPresent())  {

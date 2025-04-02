@@ -336,7 +336,6 @@ $ docker run --rm --volume $(pwd)/keycloak-data:/opt/keycloak/data -p 8081:8080 
 
 3. Create client
 
-
 - in the left navigation area, press 'clients'
 - press 'Create client'
 - Fill in 'Client ID' as 'oidc-test' and press 'Next'
