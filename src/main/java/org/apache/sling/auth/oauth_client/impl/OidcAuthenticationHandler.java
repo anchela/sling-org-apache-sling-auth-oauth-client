@@ -231,6 +231,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             if (authResponse.toSuccessResponse().getAuthorizationCode() == null) {
                 throw new IllegalStateException("No authorization code found in authorization response");
             }
+            authCode = authResponse.toSuccessResponse().getAuthorizationCode().getValue();
 
             // Retrieve the state value from the cookie
             Cookie[] cookies = request.getCookies();
@@ -275,8 +276,6 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         // TODO: find a better way to pass it?
         request.setAttribute(REDIRECT_ATTRIBUTE_NAME,redirect);
 
-        authCode = authResponse.toSuccessResponse().getAuthorizationCode().getValue();
-
         String desiredConnectionName = clientState.get().connectionName();
         if ( desiredConnectionName == null || desiredConnectionName.isEmpty() )
             throw new IllegalArgumentException("No connection found in clientState");
@@ -288,15 +287,16 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         ResolvedOidcConnection conn = ResolvedOidcConnection.resolve(connection);
 
         ClientID clientId = new ClientID(conn.clientId());
-        Secret clientSecret = new Secret(conn.clientSecret());
-
-        ClientSecretBasic clientCredentials = new ClientSecretBasic(clientId, clientSecret);
+        // Secret clientSecret = clientSecret = new Secret(conn.clientSecret());
+        // ClientSecretBasic clientCredentials = new ClientSecretBasic(clientId, clientSecret);
 
         AuthorizationCode code = new AuthorizationCode(authCode);
 
+        URI tokenEndpoint;
         TokenRequest tokenRequest;
+        HTTPResponse httpResponse;
         try {
-            URI tokenEndpoint = new URI(conn.tokenEndpoint());
+            tokenEndpoint = new URI(conn.tokenEndpoint());
 
             if (pkceEnabled) {
                 // Make the token request, with PKCE
@@ -306,7 +306,9 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                         clientId,
                         new AuthorizationCodeGrant(code, new URI(callbackUri), new CodeVerifier(codeVerifierCookie.getValue())));
             } else {
-                clientCredentials = new ClientSecretBasic(clientId, clientSecret);
+                Secret clientSecret = new Secret(conn.clientSecret());
+
+                ClientSecretBasic clientCredentials = new ClientSecretBasic(clientId, clientSecret);
 
                 tokenRequest = new TokenRequest.Builder(
                         tokenEndpoint,
@@ -314,23 +316,21 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                         new AuthorizationCodeGrant(code, new URI(callbackUri))
                 ).build();
             }
-        } catch (URISyntaxException e) {
-                logger.error("Token Endpoint is not a valid URI: {} Error: {}", conn.tokenEndpoint(), e.getMessage());
-                throw new RuntimeException(String.format("Token Endpoint is not a valid URI: %s", conn.tokenEndpoint()));
-        }
 
-        HTTPRequest httpRequest = tokenRequest.toHTTPRequest();
-        // GitHub requires an explicitly set Accept header, otherwise the response is url encoded
-        // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#2-users-are-redirected-back-to-your-site-by-github
-        // see also https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions/issues/107/support-application-x-www-form-urlencoded
-        httpRequest.setAccept("application/json");
-        HTTPResponse httpResponse;
-        try {
+            HTTPRequest httpRequest = tokenRequest.toHTTPRequest();
+            // GitHub requires an explicitly set Accept header, otherwise the response is url encoded
+            // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#2-users-are-redirected-back-to-your-site-by-github
+            // see also https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions/issues/107/support-application-x-www-form-urlencoded
+            httpRequest.setAccept("application/json");
             httpResponse = httpRequest.send();
+        } catch (URISyntaxException e) {
+            logger.error("Token Endpoint is not a valid URI: {} Error: {}", conn.tokenEndpoint(), e.getMessage());
+            throw new RuntimeException(String.format("Token Endpoint is not a valid URI: %s", conn.tokenEndpoint()));
         } catch (IOException e) {
             logger.error("Failed to exchange authorization code for access token: {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
+
 
         // extract id token from the response
         TokenResponse tokenResponse;
