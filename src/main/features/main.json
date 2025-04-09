@@ -5,7 +5,7 @@
         "start-order": 24
     },
     {
-        "id":"com.nimbusds:nimbus-jose-jwt:9.41.1",
+        "id": "com.nimbusds:nimbus-jose-jwt:10.0.2",
         "start-order": 24
     },
     {
@@ -15,9 +15,6 @@
     {
        "id":"com.nimbusds:lang-tag:1.7",
         "start-order": 24
-    },
-    {
-      "id": "com.nimbusds:nimbus-jose-jwt:10.0.2"
     },
     {
         "id":"org.apache.servicemix.bundles:org.apache.servicemix.bundles.jcip-annotations:1.0_2",
