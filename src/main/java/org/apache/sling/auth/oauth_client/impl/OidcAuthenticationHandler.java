@@ -298,13 +298,24 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         try {
             tokenEndpoint = new URI(conn.tokenEndpoint());
 
-            if (pkceEnabled) {
+            if (pkceEnabled && conn.clientSecret() != null) {
                 // Make the token request, with PKCE
                 // TODO: Add ClientSecretBasic
-                tokenRequest = new TokenRequest(
+                Secret clientSecret = new Secret(conn.clientSecret());
+                ClientSecretBasic clientCredentials = new ClientSecretBasic(clientId, clientSecret);
+
+                tokenRequest = new TokenRequest.Builder(
+                        tokenEndpoint,
+                        clientCredentials,
+                        new AuthorizationCodeGrant(code, new URI(callbackUri), new CodeVerifier(codeVerifierCookie.getValue()))
+                ).build();
+
+            } else if (pkceEnabled) {
+                tokenRequest = new TokenRequest.Builder(
                         tokenEndpoint,
                         clientId,
-                        new AuthorizationCodeGrant(code, new URI(callbackUri), new CodeVerifier(codeVerifierCookie.getValue())));
+                        new AuthorizationCodeGrant(code, new URI(callbackUri), new CodeVerifier(codeVerifierCookie.getValue()))
+                ).build();
             } else {
                 Secret clientSecret = new Secret(conn.clientSecret());
 
@@ -353,6 +364,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             throw new RuntimeException(e.getMessage());
         }
         // Make the request to userInfo
+        String subject = claims.getSubject().getValue();
         OidcAuthCredentials credentials;
         if (userInfoEnabled) {
             HTTPResponse httpResponseUserInfo;
@@ -373,17 +385,16 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                 UserInfo userInfo = userInfoResponse.toSuccessResponse().getUserInfo();
 
                 //process credentials
-                credentials = userInfoProcessor.process(userInfo, tokenResponse, idp);
+                credentials = userInfoProcessor.process(userInfo, tokenResponse, subject, idp);
 
             } catch (IOException | URISyntaxException | ParseException e) {
                 logger.error("Error while processing UserInfo: {}", e.getMessage(), e);
                 throw new IllegalStateException(e);
             }
         } else {
-            credentials = userInfoProcessor.process(null, tokenResponse, idp);
+            credentials = userInfoProcessor.process(null, tokenResponse, subject, idp);
         }
         //create authInfo
-        String subject = claims.getSubject().getValue();
         authInfo = new AuthenticationInfo(AUTH_TYPE, subject);
         authInfo.put(JcrResourceConstants.AUTHENTICATION_INFO_CREDENTIALS, credentials);
 
