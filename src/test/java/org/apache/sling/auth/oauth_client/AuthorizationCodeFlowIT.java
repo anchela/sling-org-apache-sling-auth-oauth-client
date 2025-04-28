@@ -399,12 +399,11 @@ class AuthorizationCodeFlowIT {
         String locationHeaderValue = locationHeader.getValue();
 
         DefaultCookieSpec cookieSpec = new DefaultCookieSpec();
-        List<Cookie> cookies = cookieSpec.parse(entryPointResponse.getFirstHeader("set-cookie"), new CookieOrigin("localhost", slingPort, "/", true));
-        Optional<Cookie> oauthCookie = cookies.stream().filter( c -> c.getName().equals("sling.oauth-request-key") )
-                .findFirst();
-
-        assertThat(oauthCookie).as("OAuth cookie set by entry point servlet").isPresent();
-        String oauthRequestKey = oauthCookie.get().getValue();
+        ArrayList<Header> headers = new ArrayList<>(Arrays.asList(entryPointResponse.getHeaders("set-cookie")));
+        ArrayList<Cookie> cookies = new ArrayList<>(headers.size());
+        for (Header header : headers) {
+            cookies.addAll(cookieSpec.parse(header, new CookieOrigin("localhost", slingPort, "/", true)));
+        }
 
         // load login form from keycloak
         HttpClient httpClient = HttpClient.newHttpClient();
@@ -422,7 +421,7 @@ class AuthorizationCodeFlowIT {
 
         List<String> authFormRequestCookies = renderLoginFormResponse.headers().allValues("set-cookie");
 
-        // Post credentils to keycloak
+        // Post credentials to keycloak
         Map<String, String> authData = Map.of("username", "test", "password", "test", "credentialId", "");
         String requestBody = authData.entrySet().stream()
                 .map( e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
@@ -449,8 +448,12 @@ class AuthorizationCodeFlowIT {
                 })
                 .toList();
 
-        List<Header> headers = new ArrayList<>();
-        headers.add(new BasicHeader("Cookie", "sling.oauth-request-key=" + oauthRequestKey));
+        headers = new ArrayList<>();
+        String cookieHeader = "";
+        for (Cookie cookie : cookies) {
+            cookieHeader += cookie.getName() + "=" + cookie.getValue() + "; ";
+        }
+        headers.add(new BasicHeader("Cookie", cookieHeader));
         SlingHttpResponse authenticatedResponse = slingUser.doGet(redirectUri.getRawPath(), params, headers, 302);
         Header[] cookieHeaders = authenticatedResponse.getHeaders("set-cookie");
         //retrieve the login-cookie header

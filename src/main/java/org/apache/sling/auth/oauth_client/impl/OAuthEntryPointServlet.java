@@ -97,7 +97,9 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
             }
                 
             var redirect = getAuthenticationRequestUri(connection, request, URI.create(OAuthCallbackServlet.getCallbackUri(request)));
-            response.addCookie(redirect.cookie());
+            for ( Cookie cookie : redirect.cookie() ) {
+                response.addCookie(cookie);
+            }
             response.sendRedirect(redirect.uri().toString());
         } catch (Exception e) {
             throw new OAuthEntryPointException("Internal error", e);
@@ -121,7 +123,7 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
         cookie.setSecure(true);
         cookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
         
-        State state = stateManager.toNimbusState(new OAuthState(perRequestKey, connectionName, redirect));
+        State state = stateManager.toNimbusState(new OAuthState(perRequestKey, connectionName, redirect, null));
 
         URI authorizationEndpointUri = URI.create(conn.authorizationEndpoint());
 
@@ -141,8 +143,8 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
                 .forEach( p -> authRequestBuilder.customParameter(p[0], p[1]));
         }
         
-        return new RedirectTarget(authRequestBuilder.build().toURI(), cookie);
+        return new RedirectTarget(authRequestBuilder.build().toURI(), new Cookie[]{cookie});
     }
     
-    record RedirectTarget(URI uri, Cookie cookie) {} 
+    record RedirectTarget(URI uri, Cookie[] cookie) {}
 }

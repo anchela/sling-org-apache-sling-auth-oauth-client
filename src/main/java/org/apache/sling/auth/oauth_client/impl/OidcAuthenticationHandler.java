@@ -21,7 +21,6 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.oauth2.sdk.AuthorizationCode;
 import com.nimbusds.oauth2.sdk.AuthorizationCodeGrant;
-import com.nimbusds.oauth2.sdk.AuthorizationRequest;
 import com.nimbusds.oauth2.sdk.AuthorizationResponse;
 import com.nimbusds.oauth2.sdk.ErrorObject;
 import com.nimbusds.oauth2.sdk.ErrorResponse;
@@ -38,6 +37,8 @@ import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.id.Identifier;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.oauth2.sdk.id.State;
+import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
+import com.nimbusds.openid.connect.sdk.Nonce;
 import com.nimbusds.openid.connect.sdk.OIDCTokenResponseParser;
 import com.nimbusds.openid.connect.sdk.UserInfoRequest;
 import com.nimbusds.openid.connect.sdk.UserInfoResponse;
@@ -119,6 +120,8 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
 
     private final boolean userInfoEnabled;
 
+    private final boolean checkNonce;
+
     @ObjectClassDefinition(
             name = "Apache Sling Oidc Authentication Handler",
             description = "Apache Sling Oidc Authentication Handler Service"
@@ -150,6 +153,9 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                 description = "UserInfo Enabled")
         boolean userInfoEnabled() default true;
 
+        @AttributeDefinition(name = "Check Nonce",
+                description = "Check Nonce")
+        boolean checkNonce() default true;
     }
 
     @Activate
@@ -172,6 +178,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         this.defaultConnectionName = config.defaultConnectionName();
         this.userInfoProcessor = userInfoProcessor;
         this.userInfoEnabled = config.userInfoEnabled();
+        this.checkNonce = config.checkNonce();
 
         logger.debug("activate: registering ExternalIdentityProvider");
         bundleContext.registerService(
@@ -196,7 +203,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         }
 
         //The request is not authenticated. 
-        // 1. Check if the State cookie match with the state in the request received from the idp
+        // 1. Extract nonce cookie and state cookie from the request
         StringBuffer requestURL = request.getRequestURL();
         if ( request.getQueryString() != null )
             requestURL.append('?').append(request.getQueryString());
@@ -204,23 +211,26 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         Optional<OAuthState> clientState; //state returned by the idp in the redirect request
         String authCode; //authorization code returned by the idp in the redirect request
         Cookie stateCookie;
+        Cookie nonceCookie;
         try {
             AuthorizationResponse authResponse = AuthorizationResponse.parse(new URI(requestURL.toString()));
             clientState = extractClientState(authResponse);
             authCode = extractAuthCode(authResponse);
             stateCookie = extractStateCookie(request);
+            nonceCookie = extractNonceCookie(request);
         } catch (ParseException | URISyntaxException e) {
             logger.debug("Failed to parse authorization response");
             return null;
         }
 
+        //2. Check if the State cookie match with the state in the request received from the idp
         String stateFromAuthServer = clientState.get().perRequestKey();
         String stateFromClient = stateCookie.getValue();
         if (!stateFromAuthServer.equals(stateFromClient)) {
             throw new IllegalStateException("Failed state check: request keys from client and server are not the same");
         }
 
-        // 2. The state cookie is valid, we can exchange an authorization code for an access token
+        // 3. The state cookie is valid, we can exchange an authorization code for an access token
         Optional<String> redirect = Optional.ofNullable(clientState.get().redirect());
         // TODO: find a better way to pass it?
         request.setAttribute(REDIRECT_ATTRIBUTE_NAME,redirect);
@@ -236,9 +246,12 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         Secret clientSecret = new Secret(conn.clientSecret());
         ClientSecretBasic clientCredentials = new ClientSecretBasic(clientId, clientSecret);
 
-        // Exchange the authorization code for an access token, id token and possibly refresh token
+        // 4. Exchange the authorization code for an access token, id token and possibly refresh token
         TokenResponse tokenResponse = extractTokenResponse(authCode, conn, clientCredentials, callbackUri);
-        IDTokenClaimsSet claims = validateIdToken(tokenResponse, conn);
+
+        // 5. Validate the ID token
+        String nonce = nonceCookie.getValue();
+        IDTokenClaimsSet claims = validateIdToken(tokenResponse, conn, new Nonce(nonce) );
         
         // Make the request to userInfo
         String subject = claims.getSubject().getValue();
@@ -290,7 +303,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         }
         return clientState;
     }
-    
+
     private static @NotNull String extractAuthCode(@NotNull AuthorizationResponse authResponse) {
         AuthorizationCode authCode = authResponse.toSuccessResponse().getAuthorizationCode();
         if (authCode == null) {
@@ -350,6 +363,19 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         throw new IllegalStateException(String.format("Failed state check: No request cookie named %s found", OAuthStateManager.COOKIE_NAME_REQUEST_KEY));
     }
 
+    private static @NotNull Cookie extractNonceCookie(@NotNull HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            throw new IllegalStateException("Failed state check: No cookies found");
+        }
+        for (Cookie cookie : cookies) {
+            if (OAuthStateManager.COOKIE_NAME_NONCE.equals(cookie.getName())) {
+                return cookie;
+            }
+        }
+        throw new IllegalStateException(String.format("Failed state check: No request cookie named %s found", OAuthStateManager.COOKIE_NAME_NONCE));
+    }
+
     /**
      * Validates the ID token received from the OpenID provider.
      * According to this documentation: https://connect2id.com/blog/how-to-validate-an-openid-connect-id-token
@@ -366,8 +392,8 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
      * @param conn         The resolved OIDC connection.
      * @return The validated ID token claims set.
      */
-    private static @NotNull IDTokenClaimsSet validateIdToken(@NotNull TokenResponse tokenResponse, 
-                                                             @NotNull ResolvedOidcConnection conn) {
+    private @NotNull IDTokenClaimsSet validateIdToken(@NotNull TokenResponse tokenResponse,
+                                                             @NotNull ResolvedOidcConnection conn, Nonce nonce) {
         Issuer issuer = new Issuer(conn.issuer());
         ClientID clientID = new ClientID(conn.clientId());
         try {
@@ -375,7 +401,10 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             URL jwkSetURL = conn.jwkSetURL().toURL();
 
             IDTokenValidator validator = new IDTokenValidator(issuer, clientID, jwsAlg, jwkSetURL);
-            return validator.validate(tokenResponse.toSuccessResponse().getTokens().toOIDCTokens().getIDToken(), null);
+            if (checkNonce)
+                return validator.validate(tokenResponse.toSuccessResponse().getTokens().toOIDCTokens().getIDToken(), nonce);
+            else
+                return validator.validate(tokenResponse.toSuccessResponse().getTokens().toOIDCTokens().getIDToken(), null);
         } catch (BadJOSEException | JOSEException | MalformedURLException e) {
             logger.error("Failed to validate token: {}", e.getMessage(), e);
             throw new RuntimeException(e.getMessage());
@@ -417,7 +446,9 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             }
 
             var redirect = getAuthenticationRequestUri(connection, request, URI.create(callbackUri));
-            response.addCookie(redirect.cookie());
+            for ( Cookie cookie : redirect.cookie() ) {
+                response.addCookie(cookie);
+            }
             response.sendRedirect(redirect.uri().toString());
             return true;
         } catch (IOException e) {
@@ -440,23 +471,32 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         String redirect = request.getParameter(OAuthStateManager.PARAMETER_NAME_REDIRECT);
         String perRequestKey = new Identifier().getValue();
 
-        Cookie cookie = new Cookie(OAuthStateManager.COOKIE_NAME_REQUEST_KEY, perRequestKey);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
+        Cookie stateCookie = new Cookie(OAuthStateManager.COOKIE_NAME_REQUEST_KEY, perRequestKey);
+        stateCookie.setHttpOnly(true);
+        stateCookie.setSecure(true);
+        stateCookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
 
-        State state = stateManager.toNimbusState(new OAuthState(perRequestKey, connectionName, redirect));
+        Nonce nonce = new Nonce(new Identifier().getValue());
+        Cookie nonceCookie = new Cookie(OAuthStateManager.COOKIE_NAME_NONCE, nonce.getValue());
+        nonceCookie.setHttpOnly(true);
+        nonceCookie.setSecure(true);
+        nonceCookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
+
+
+        State state = stateManager.toNimbusState(new OAuthState(perRequestKey, connectionName, redirect, nonce.getValue()));
 
         URI authorizationEndpointUri = URI.create(conn.authorizationEndpoint());
 
         // Compose the OpenID authentication request (for the code flow)
-        AuthorizationRequest.Builder authRequestBuilder = new AuthorizationRequest.Builder(
-                ResponseType.CODE,
-                clientID)
-                .scope(new Scope(conn.scopes().toArray(new String[0])))
-                .endpointURI(authorizationEndpointUri)
-                .redirectionURI(redirectUri)
-                .state(state);
+        AuthenticationRequest.Builder authRequestBuilder = new AuthenticationRequest.Builder(
+            ResponseType.CODE,
+                new Scope(conn.scopes().toArray(new String[0])),
+                clientID,
+                redirectUri
+        )
+        .nonce(nonce)
+        .endpointURI(authorizationEndpointUri)
+        .state(state);
 
         if ( conn.additionalAuthorizationParameters() != null ) {
             conn.additionalAuthorizationParameters().stream()
@@ -465,7 +505,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                     .forEach( p -> authRequestBuilder.customParameter(p[0], p[1]));
         }
 
-        return new OAuthEntryPointServlet.RedirectTarget(authRequestBuilder.build().toURI(), cookie);
+        return new OAuthEntryPointServlet.RedirectTarget(authRequestBuilder.build().toURI(), new Cookie[]{stateCookie,nonceCookie});
     }
 
     @Override
