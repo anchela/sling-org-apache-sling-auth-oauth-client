@@ -48,15 +48,7 @@
 
 	<build>
 		<plugins>
-            <plugin>
-                <groupId>biz.aQute.bnd</groupId>
-                <artifactId>bnd-maven-plugin</artifactId>
-                <extensions>true</extensions>
-                <configuration>
-                    <bnd><![CDATA[-exportcontents:org.apache.sling.auth.oauth_client.spi]]></bnd>
-                </configuration>
-            </plugin>
-            <plugin>
+			<plugin>
 				<groupId>biz.aQute.bnd</groupId>
 				<artifactId>bnd-maven-plugin</artifactId>
 			</plugin>
@@ -229,16 +221,15 @@
                                 <repositoryUrl>file://${project.build.directory}/artifacts</repositoryUrl>
                             </repositoryUrls>
                             <launcherArguments>
-                                <vm-options>
+                                <!-- <vm-options>
                                     <value>-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:3007</value>
-                                </vm-options>
+                                </vm-options> -->
                                 <frameworkProperties>
                                     <org.osgi.service.http.port>${http.port}</org.osgi.service.http.port>
                                 </frameworkProperties>
                             </launcherArguments>
                             <environmentVariables>
                                 <IT_ENCRYPTION_PASSWORD>random</IT_ENCRYPTION_PASSWORD>
-                                <JAVA_OPS>-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:3007</JAVA_OPS>
                             </environmentVariables>
                             <startTimeoutSeconds>${it.startTimeoutSeconds}</startTimeoutSeconds>
                         </launch>
@@ -304,12 +295,6 @@
             <scope>provided</scope>
         </dependency>
         <!-- TODO - revisit if we can remove dependency-->
-        <dependency>
-            <groupId>org.apache.sling</groupId>
-            <artifactId>org.apache.sling.auth.core</artifactId>
-            <version>1.2.0</version>
-            <scope>provided</scope>
-        </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.commons.crypto</artifactId>
@@ -411,6 +396,12 @@
         </dependency>
         <dependency>
             <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.auth.core</artifactId>
+            <version>1.2.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.jcr.api</artifactId>
             <version>2.4.0</version>
             <scope>provided</scope>
@@ -420,12 +411,6 @@
             <artifactId>oak-auth-external</artifactId>
             <version>1.40.0</version>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.framework</artifactId>
-            <scope>provided</scope>
-            <version>1.10.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.felix</groupId>
@@ -462,6 +447,18 @@
             <artifactId>byte-buddy</artifactId>
             <version>1.17.5</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>4.0.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.core</artifactId>
+            <version>6.0.0</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 </project>

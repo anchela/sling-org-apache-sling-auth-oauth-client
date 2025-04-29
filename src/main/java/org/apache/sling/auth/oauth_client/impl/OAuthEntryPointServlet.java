@@ -57,9 +57,9 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
 
     private static final long serialVersionUID = 1L;
 
-    // We don't want leave the cookie lying around for a long time because it it not needed.
+    // We don't want leave the cookie lying around for a long time because it is not needed.
     // At the same time, some OAuth user authentication flows take a long time due to 
-    // consent, account selection, 2FA, etc so we cannot make this too short.
+    // consent, account selection, 2FA, etc. so we cannot make this too short.
     private static final int COOKIE_MAX_AGE_SECONDS = 300;
     public static final String PATH = "/system/sling/oauth/entry-point"; // NOSONAR
     
@@ -97,7 +97,7 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
             }
                 
             var redirect = getAuthenticationRequestUri(connection, request, URI.create(OAuthCallbackServlet.getCallbackUri(request)));
-            response.addCookie(redirect.cookie());
+            response.addCookie(redirect.cookies()[0]);
             response.sendRedirect(redirect.uri().toString());
         } catch (Exception e) {
             throw new OAuthEntryPointException("Internal error", e);
@@ -141,8 +141,8 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
                 .forEach( p -> authRequestBuilder.customParameter(p[0], p[1]));
         }
         
-        return new RedirectTarget(authRequestBuilder.build().toURI(), cookie);
+        return new RedirectTarget(authRequestBuilder.build().toURI(), new Cookie[]{cookie});
     }
     
-    record RedirectTarget(URI uri, Cookie cookie) {} 
+    record RedirectTarget(URI uri, Cookie[] cookies) {}
 }
