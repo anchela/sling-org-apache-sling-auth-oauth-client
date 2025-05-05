@@ -222,7 +222,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             if (pkceEnabled) {
                 codeVerifierCookie = extractCodeVerifierCookie(request); //TODO: Thow exception if not found
             }
-        } catch (ParseException | URISyntaxException e) {
+        } catch (ParseException | URISyntaxException | IllegalStateException e) {
             logger.debug("Failed to parse authorization response");
             return null;
         }

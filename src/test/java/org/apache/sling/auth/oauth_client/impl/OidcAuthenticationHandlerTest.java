@@ -121,8 +121,7 @@ class OidcAuthenticationHandlerTest {
         when(request.getQueryString()).thenReturn("state=part1%7Cpart2");
         when(request.getRequestURL()).thenReturn(new StringBuffer("http://localhost:8080"));
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> oidcAuthenticationHandler.extractCredentials(request, response));
-        assertEquals("No authorization code found in authorization response", exception.getMessage());
+        assertNull(oidcAuthenticationHandler.extractCredentials(request, response));
     }
 
     @Test
@@ -131,8 +130,7 @@ class OidcAuthenticationHandlerTest {
         when(request.getQueryString()).thenReturn("code=authorizationCode");
         when(request.getRequestURL()).thenReturn(new StringBuffer("http://localhost:8080"));
         when(request.getCookies()).thenReturn(null);
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> oidcAuthenticationHandler.extractCredentials(request, response));
-        assertEquals("No state found in authorization response", exception.getMessage());
+        assertNull(oidcAuthenticationHandler.extractCredentials(request, response));
     }
 
     @Test
@@ -141,8 +139,7 @@ class OidcAuthenticationHandlerTest {
         when(request.getQueryString()).thenReturn("code=authorizationCode&state=part1%7Cpart2");
         when(request.getCookies()).thenReturn(null);
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> oidcAuthenticationHandler.extractCredentials(request, response));
-        assertEquals("Failed state check: No cookies found", exception.getMessage());
+        assertNull(oidcAuthenticationHandler.extractCredentials(request, response));
     }
 
     @Test
@@ -163,8 +160,7 @@ class OidcAuthenticationHandlerTest {
         //Test with a cookie that not match
         Cookie cookie = mock(Cookie.class);
         when(request.getCookies()).thenReturn(new Cookie[] {cookie});
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> oidcAuthenticationHandler.extractCredentials(request, response));
-        assertEquals(String.format("Failed state check: No request cookie named %s found", OAuthStateManager.COOKIE_NAME_REQUEST_KEY), exception.getMessage());
+        assertNull(oidcAuthenticationHandler.extractCredentials(request, response));
     }
 
     @Test
@@ -397,8 +393,7 @@ class OidcAuthenticationHandlerTest {
         when(stateCookie.getValue()).thenReturn("part1");
 
         //Test with an id token signed by another key, and expired
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> extractCredentials_WithMatchingState_WithValidConnection_WithIdToken(createIdToken(rsaJWK, "client-id", ISSUER), rsaJWK, "http://localhost:4567", new Cookie[] {stateCookie} ));
-        assertEquals("Failed state check: No request cookie named sling.oauth-nonce found", exception.getMessage());
+        assertNull(oidcAuthenticationHandler.extractCredentials(request, response));
 
     }
 
@@ -606,6 +601,14 @@ class OidcAuthenticationHandlerTest {
         assertEquals("com.nimbusds.oauth2.sdk.ParseException: Couldn't parse UserInfo claims: Invalid JSON", exception.getMessage());
     }
 
+    @Test
+    public void extractCredentials_WithParameters() {
+        request = mock(HttpServletRequest.class);
+        when(request.getQueryString()).thenReturn("param1=value1&param2=value2");
+        when(request.getRequestURL()).thenReturn(new StringBuffer("http://localhost:8080?"));
+
+        assertNull(oidcAuthenticationHandler.extractCredentials(request, response));
+    }
 
     private String createIdToken(RSAKey rsaJWK, String clientId, String issuer) throws JOSEException {
         // Create the JWT claims set
