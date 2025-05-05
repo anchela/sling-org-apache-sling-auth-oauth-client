@@ -17,6 +17,7 @@
 package org.apache.sling.auth.oauth_client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.net.URI;
@@ -49,6 +50,7 @@ import org.apache.http.impl.cookie.DefaultCookieSpec;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.sling.auth.oauth_client.impl.JcrUserHomeOAuthTokenStore;
+import org.apache.sling.auth.oauth_client.impl.OAuthStateManager;
 import org.apache.sling.auth.oauth_client.impl.OidcConnectionImpl;
 import org.apache.sling.auth.oauth_client.itbundle.SupportBundle;
 import org.apache.sling.commons.crypto.internal.EnvironmentVariablePasswordProvider;
@@ -272,7 +274,26 @@ class AuthorizationCodeFlowIT {
     }
 
     @Test
-    void accessTokenIsPresentOnSuccessfulAuthenticationHandlerLogin() throws Exception {
+    void accessTokenIsPresentOnSuccessfulAuthenticationHandlerLoginWithPkceWithNonce() throws Exception {
+        accessTokenIsPresentOnSuccessfulAuthenticationHandlerLogin(true, true);
+    }
+
+    @Test
+    void accessTokenIsPresentOnSuccessfulAuthenticationHandlerLoginWithPkceWithoutNonce() throws Exception {
+        accessTokenIsPresentOnSuccessfulAuthenticationHandlerLogin(true, false);
+    }
+
+    @Test
+    void accessTokenIsPresentOnSuccessfulAuthenticationHandlerLoginWithoutPkceWithNonce() throws Exception {
+        accessTokenIsPresentOnSuccessfulAuthenticationHandlerLogin(false, true);
+    }
+
+    @Test
+    void accessTokenIsPresentOnSuccessfulAuthenticationHandlerLoginWithoutPkceWithoutNonce() throws Exception {
+        accessTokenIsPresentOnSuccessfulAuthenticationHandlerLogin(false, false);
+    }
+
+    void accessTokenIsPresentOnSuccessfulAuthenticationHandlerLogin(boolean withPkce, boolean withNonce) throws Exception {
 
         //Create a sample content with the word "Hello word"
         Map<String, String> properties = Map.of("text", "Hello World");
@@ -311,16 +332,27 @@ class AuthorizationCodeFlowIT {
         String oidcConnectionName = "keycloak";
 
         // configure connection to keycloak
-        configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(OIDC_CONFIG_PID+ ".keycloak",OIDC_CONFIG_PID,
-                Map.of(
-                        "name", oidcConnectionName,
-                        "baseUrl", "http://localhost:" + keycloakPort+"/realms/sling",
-                        "clientId", "oidc-test",
-                        "clientSecret", "wM2XIbxBTLJAac2rJSuHyKaoP8IWvSwJ",
-                        "scopes", "openid"
-                )
-        ));
-
+        if ( withPkce ) {
+            configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(OIDC_CONFIG_PID + ".keycloak", OIDC_CONFIG_PID,
+                    Map.of(
+                            "name", oidcConnectionName,
+                            "baseUrl", "http://localhost:" + keycloakPort + "/realms/sling",
+                            "clientId", "oidc-pkce",
+                            "pkceEnabled", "true",
+                            "scopes", "openid"
+                    )
+            ));
+        } else {
+            configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(OIDC_CONFIG_PID + ".keycloak", OIDC_CONFIG_PID,
+                    Map.of(
+                            "name", oidcConnectionName,
+                            "baseUrl", "http://localhost:" + keycloakPort + "/realms/sling",
+                            "clientId", "oidc-test",
+                            "clientSecret", "wM2XIbxBTLJAac2rJSuHyKaoP8IWvSwJ",
+                            "scopes", "openid"
+                    )
+            ));
+        }
         configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(SLING_AUTHENTICATOR_PID, null,
                 Map.of(
                         "auth.annonymous", true,
@@ -337,22 +369,40 @@ class AuthorizationCodeFlowIT {
                 )
         ));
 
-        configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(SYNC_HANDLER_PID+ ".keycloak", SYNC_HANDLER_PID,
-                Map.of(
-                        "user.expirationTime", "1s",
-                        "user.membershipExpTime","1s",
-                        "user.propertyMapping", new String[]{
-                            "profile/familyName=profile/familyName",
-                            "profile/givenName=profile/givenName",
-                            "rep:fullname=cn",
-                            "profile/email=profile/email",
-                             "oauth-tokens"
-                        },
-                        "user.pathPrefix", "oidc",
-                        "handler.name", "oidc"
-                )
-        ));
-
+        if (withNonce) {
+            configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(SYNC_HANDLER_PID + ".keycloak", SYNC_HANDLER_PID,
+                    Map.of(
+                            "user.expirationTime", "1s",
+                            "user.membershipExpTime", "1s",
+                            "user.propertyMapping", new String[]{
+                                    "profile/familyName=profile/familyName",
+                                    "profile/givenName=profile/givenName",
+                                    "rep:fullname=cn",
+                                    "profile/email=profile/email",
+                                    "oauth-tokens"
+                            },
+                            "user.pathPrefix", "oidc",
+                            "handler.name", "oidc"
+                    )
+            ));
+        } else {
+            configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(SYNC_HANDLER_PID + ".keycloak", SYNC_HANDLER_PID,
+                    Map.of(
+                            "user.expirationTime", "1s",
+                            "user.membershipExpTime", "1s",
+                            "user.propertyMapping", new String[]{
+                                    "profile/familyName=profile/familyName",
+                                    "profile/givenName=profile/givenName",
+                                    "rep:fullname=cn",
+                                    "profile/email=profile/email",
+                                    "oauth-tokens"
+                            },
+                            "user.pathPrefix", "oidc",
+                            "handler.name", "oidc",
+                            "checkNonce", "false"
+                    )
+            ));
+        }
         configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(EXTERNAL_LOGIN_MODULE_FACTORY_PID+ ".keycloak", EXTERNAL_LOGIN_MODULE_FACTORY_PID,
                 Map.of(
                             "sync.handlerName", "oidc",
@@ -360,15 +410,27 @@ class AuthorizationCodeFlowIT {
                 )
         ));
 
-        configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(OIDC_AUTHENTICATION_HANDLER_PID+ ".keycloak", OIDC_AUTHENTICATION_HANDLER_PID,
-                Map.of(
-                        "callbackUri", "http://localhost:" + slingPort +TEST_PATH+"/j_security_check",
-                        "path", TEST_PATH,
-                        "defaultConnectionName", oidcConnectionName,
-                        "defaultRedirect", TEST_PATH+".html"
-                )
-        ));
+        if (withPkce) {
+            configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(OIDC_AUTHENTICATION_HANDLER_PID + ".keycloak", OIDC_AUTHENTICATION_HANDLER_PID,
+                    Map.of(
+                            "callbackUri", "http://localhost:" + slingPort + TEST_PATH + "/j_security_check",
+                            "path", TEST_PATH,
+                            "defaultConnectionName", oidcConnectionName,
+                            "defaultRedirect", TEST_PATH + ".html",
+                            "pkceEnabled", "true"
+                    )
+            ));
+        } else {
+            configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(OIDC_AUTHENTICATION_HANDLER_PID + ".keycloak", OIDC_AUTHENTICATION_HANDLER_PID,
+                    Map.of(
+                            "callbackUri", "http://localhost:" + slingPort + TEST_PATH + "/j_security_check",
+                            "path", TEST_PATH,
+                            "defaultConnectionName", oidcConnectionName,
+                            "defaultRedirect", TEST_PATH + ".html"
+                    )
+            ));
 
+        }
 
         // clean up any existing tokens
         String userPath = getUserPath(sling, sling.getUser());
@@ -396,6 +458,10 @@ class AuthorizationCodeFlowIT {
         }
         assertThat(locationHeader.getElements()).as("Location header value from entry-point request")
                 .singleElement().asString().startsWith("http://localhost:" + keycloakPort);
+        if (withNonce) {
+            assertThat(locationHeader.getElements()).as("Nonce is present in the redirect").singleElement().asString().contains("nonce");
+        }
+
         String locationHeaderValue = locationHeader.getValue();
 
         DefaultCookieSpec cookieSpec = new DefaultCookieSpec();
@@ -405,6 +471,20 @@ class AuthorizationCodeFlowIT {
             cookies.addAll(cookieSpec.parse(header, new CookieOrigin("localhost", slingPort, "/", true)));
         }
 
+        // Assert that cookies are set
+        assertTrue(cookies.stream()
+                .filter(cookie -> OAuthStateManager.COOKIE_NAME_REQUEST_KEY.equals(cookie.getName()))
+                .findFirst().isPresent());
+        if (withPkce) {
+            assertTrue(cookies.stream()
+                    .filter(cookie -> OAuthStateManager.COOKIE_NAME_CODE_VERIFIER.equals(cookie.getName()))
+                    .findFirst().isPresent());
+        }
+        if (withNonce) {
+            assertTrue(cookies.stream()
+                    .filter(cookie -> OAuthStateManager.COOKIE_NAME_NONCE.equals(cookie.getName()))
+                    .findFirst().isPresent());
+        }
         // load login form from keycloak
         HttpClient httpClient = HttpClient.newHttpClient();
         HttpRequest renderLoginFormRequest = HttpRequest.newBuilder().uri(URI.create(locationHeaderValue)).build();
@@ -433,13 +513,12 @@ class AuthorizationCodeFlowIT {
         authFormRequestCookies.forEach(cookie -> authenticateRequest.header("cookie", cookie));
 
         HttpResponse<String> authenticateResponse = httpClient.send(authenticateRequest.build(), BodyHandlers.ofString());
-        System.out.println(authenticateResponse.body());
 
         // Assert response from keycloak
         Optional<String> authResponseLocationHeader = authenticateResponse.headers().firstValue("location");
         assertThat(authResponseLocationHeader).as("Authentication response header").isPresent();
 
-        //Get on sling with code from keycloak. The login cookie (sling.oidcauth) will be created
+        //Http Request on sling with code from keycloak. The login cookie (sling.oidcauth) will be created
         URI redirectUri = URI.create(authResponseLocationHeader.get());
         List<NameValuePair> params = Arrays.stream(redirectUri.getRawQuery().split("&"))
                 .map( s -> {
