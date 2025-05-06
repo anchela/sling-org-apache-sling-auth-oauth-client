@@ -319,11 +319,14 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
     }
 
     private static @NotNull String extractAuthCode(@NotNull AuthorizationResponse authResponse) {
-        AuthorizationCode authCode = authResponse.toSuccessResponse().getAuthorizationCode();
-        if (authCode == null) {
-            throw new IllegalStateException("No authorization code found in authorization response");
+        if (authResponse.indicatesSuccess()) {
+            AuthorizationCode authCode = authResponse.toSuccessResponse().getAuthorizationCode();
+            if (authCode == null) {
+                throw new IllegalStateException("No authorization code found in authorization response");
+            }
+            return authCode.getValue();
         }
-        return authCode.getValue();
+        throw new IllegalStateException(authResponse.toErrorResponse().getErrorObject().getDescription());
     }
 
 

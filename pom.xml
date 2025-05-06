@@ -244,6 +244,16 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.rat</groupId>
+                <artifactId>apache-rat-plugin</artifactId>
+                <version>0.14</version>
+                <configuration>
+                    <excludes>
+                        <exclude>keycloak-data/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
 		</plugins>
 	</build>
 	<dependencies>
