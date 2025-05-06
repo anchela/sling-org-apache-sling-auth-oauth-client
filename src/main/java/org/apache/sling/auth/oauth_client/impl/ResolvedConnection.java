@@ -16,22 +16,14 @@
  */
 package org.apache.sling.auth.oauth_client.impl;
 
-import java.util.Optional;
+import java.util.List;
 
-import com.nimbusds.oauth2.sdk.id.State;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-public interface OAuthStateManager {
-    
-    String PARAMETER_NAME_REDIRECT = "redirect";
-    String COOKIE_NAME_REQUEST_KEY = "sling.oauth-request-key";
-    String COOKIE_NAME_CODE_VERIFIER = "sling.oauth-code-verifier";
-    String COOKIE_NAME_NONCE = "sling.oauth-nonce";
-    String COOKIE_NAME_REDIRECT_URI = "sling.oauth-redirect-uri";
-
-    @NotNull State toNimbusState(@NotNull OAuthState state);
-    
-    @NotNull Optional<OAuthState> toOAuthState(@Nullable State state);
-
+public interface ResolvedConnection {
+    String name();
+    String authorizationEndpoint();
+    String tokenEndpoint();
+    String clientId();
+    String clientSecret();
+    List<String> scopes();
+    List<String> additionalAuthorizationParameters();
 }

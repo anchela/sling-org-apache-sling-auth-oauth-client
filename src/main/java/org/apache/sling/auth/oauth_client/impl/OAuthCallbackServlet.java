@@ -172,7 +172,7 @@ public class OAuthCallbackServlet extends SlingAllMethodsServlet {
             if (connection == null) {
                 throw new IllegalArgumentException(String.format("Requested unknown connection '%s'", desiredConnectionName));
             }
-            ResolvedOAuthConnection conn = ResolvedOAuthConnection.resolve(connection);
+            ResolvedConnection conn = ResolvedOAuthConnection.resolve(connection);
 
             ClientID clientId = new ClientID(conn.clientId());
             Secret clientSecret = new Secret(conn.clientSecret());

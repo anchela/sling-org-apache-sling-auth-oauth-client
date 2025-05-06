@@ -34,9 +34,9 @@ public record ResolvedOAuthConnection(
         String clientId,
         String clientSecret,
         List<String> scopes,
-        List<String> additionalAuthorizationParameters) {
+        List<String> additionalAuthorizationParameters) implements ResolvedConnection {
     
-    public static @NotNull ResolvedOAuthConnection resolve(@NotNull ClientConnection connection) {
+    public static @NotNull ResolvedConnection resolve(@NotNull ClientConnection connection) {
         
         if ( connection instanceof OidcConnectionImpl impl ) {
             return new ResolvedOAuthConnection(

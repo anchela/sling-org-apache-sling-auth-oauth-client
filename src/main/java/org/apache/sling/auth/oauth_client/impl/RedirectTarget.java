@@ -20,7 +20,8 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.servlet.http.Cookie;
 import java.net.URI;
+import java.util.List;
 
-record RedirectTarget(@NotNull URI uri, @NotNull Cookie[] cookies) {
+record RedirectTarget(@NotNull URI uri, @NotNull List<Cookie> cookies) {
     
 }

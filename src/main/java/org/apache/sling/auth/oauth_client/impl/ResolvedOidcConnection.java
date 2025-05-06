@@ -27,7 +27,7 @@ import java.util.List;
  * 
  * <p>Serves as an internal abstraction over the client-facing {@link ClientConnection} and its implementations.</p>
  */
-public record ResolvedOidcConnection(
+public record ResolvedOidcConnection (
         String name,
         String authorizationEndpoint,
         String tokenEndpoint,
@@ -37,9 +37,9 @@ public record ResolvedOidcConnection(
         List<String> additionalAuthorizationParameters,
         java.net.URI jwkSetURL,
         String issuer
-    ) {
+    ) implements ResolvedConnection {
     
-    public static @NotNull ResolvedOidcConnection resolve(@NotNull ClientConnection connection) {
+    public static @NotNull ResolvedConnection resolve(@NotNull ClientConnection connection) {
         
         if ( connection instanceof OidcConnectionImpl impl ) {
             return new ResolvedOidcConnection(
