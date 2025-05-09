@@ -53,6 +53,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.sling.auth.oauth_client.impl.JcrUserHomeOAuthTokenStore;
 import org.apache.sling.auth.oauth_client.impl.OAuthStateManager;
 import org.apache.sling.auth.oauth_client.impl.OidcConnectionImpl;
+import org.apache.sling.auth.oauth_client.impl.SlingUserInfoProcessorImpl;
 import org.apache.sling.auth.oauth_client.itbundle.SupportBundle;
 import org.apache.sling.commons.crypto.internal.EnvironmentVariablePasswordProvider;
 import org.apache.sling.commons.crypto.jasypt.internal.JasyptRandomIvGeneratorRegistrar;
@@ -384,10 +385,10 @@ class AuthorizationCodeFlowIT {
                 Map.entry("user.pathPrefix", "oidc"),
                 Map.entry("group.pathPrefix", "oidc"),
                 Map.entry("user.membershipNestingDepth", "1"),
-                Map.entry("handler.name", "oidc"),
-                Map.entry("user.dynamicMembership", "true"),
-                Map.entry("user.enforceDynamicMembership", "true"),
-                Map.entry("group.dynamicGroups", "true")
+                Map.entry("handler.name", "oidc")
+//                Map.entry("user.dynamicMembership", "true"),
+//                Map.entry("user.enforceDynamicMembership", "true"),
+//                Map.entry("group.dynamicGroups", "true")
         );
         configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(SYNC_HANDLER_PID + ".keycloak", SYNC_HANDLER_PID, syncHandlerConfig));
 
@@ -395,6 +396,13 @@ class AuthorizationCodeFlowIT {
                 Map.of(
                             "sync.handlerName", "oidc",
                             "idp.name", "oidc"
+                )
+        ));
+
+        configPidsToCleanup.add(sling.adaptTo(OsgiConsoleClient.class).editConfiguration(SlingUserInfoProcessorImpl.class.getName(), null,
+                Map.of(
+                        "storeAccessToken", "true",
+                        "storeRefreshToken", "true"
                 )
         ));
 

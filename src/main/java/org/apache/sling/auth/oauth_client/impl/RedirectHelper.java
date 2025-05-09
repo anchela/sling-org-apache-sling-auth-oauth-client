@@ -43,12 +43,13 @@ class RedirectHelper {
         // Utility class
     }
     
-    static @NotNull RedirectTarget buildRedirectTarget(@NotNull ClientID clientID, @NotNull String authorizationEndpoint, @NotNull List<String> scopes,
+    static @NotNull RedirectTarget buildRedirectTarget(@NotNull String[] paths, @Nullable String originaRedirectTarget, @NotNull ClientID clientID, @NotNull String authorizationEndpoint, @NotNull List<String> scopes,
                                                        @Nullable List<String> additionalAuthorizationParameters, @NotNull State state,
                                                        @NotNull String perRequestKey, @NotNull URI redirectUri, boolean pkceEnabled, @Nullable String nonce) {
 
+        String path = findLongestPathMatching(paths, originaRedirectTarget);
         ArrayList<Cookie> cookies = new ArrayList<>();
-        Cookie requestKeyCookie = buildCookie(OAuthStateManager.COOKIE_NAME_REQUEST_KEY, perRequestKey);
+        Cookie requestKeyCookie = buildCookie(path, OAuthStateManager.COOKIE_NAME_REQUEST_KEY, perRequestKey);
         cookies.add(requestKeyCookie);
 
         //-----------------
@@ -65,7 +66,7 @@ class RedirectHelper {
         .state(state);
 
         if (nonce != null) {
-            Cookie nonceCookie = buildCookie(OAuthStateManager.COOKIE_NAME_NONCE, nonce);
+            Cookie nonceCookie = buildCookie(path, OAuthStateManager.COOKIE_NAME_NONCE, nonce);
             cookies.add(nonceCookie);
 
             authRequestBuilder.nonce(new Nonce(nonce));
@@ -78,8 +79,13 @@ class RedirectHelper {
 
             authRequestBuilder.codeChallenge(codeVerifier, CodeChallengeMethod.S256);
 
-            Cookie codeVerifierCookie = buildCookie(OAuthStateManager.COOKIE_NAME_CODE_VERIFIER, codeVerifier.getValue());
+            Cookie codeVerifierCookie = buildCookie(path, OAuthStateManager.COOKIE_NAME_CODE_VERIFIER, codeVerifier.getValue());
             cookies.add(codeVerifierCookie);
+        }
+
+        if (originaRedirectTarget != null) {
+            Cookie redirectCookie = buildCookie(path, OAuthStateManager.COOKIE_NAME_REDIRECT_URI, originaRedirectTarget);
+            cookies.add(redirectCookie);
         }
 
         if (additionalAuthorizationParameters != null) {
@@ -93,12 +99,33 @@ class RedirectHelper {
     }
 
     
-    private static @NotNull Cookie buildCookie(@NotNull String name, @NotNull String perRequestKey) {
+    private static @NotNull Cookie buildCookie(@NotNull String path, @NotNull String name, @NotNull String perRequestKey) {
         Cookie cookie = new Cookie(name, perRequestKey);
         cookie.setHttpOnly(true);
         cookie.setSecure(true);
         cookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
+        cookie.setPath(path);
         return cookie;
+    }
+
+    public static String findLongestPathMatching(String[] path, String url) {
+        if (path == null || path.length == 0) {
+            return null;
+        }
+
+        if (url == null && path.length ==1) {
+            return path[0];
+        }
+
+        String longestPath = null;
+        for (String p : path) {
+            if (url.startsWith(p)) {
+                if (longestPath == null || p.length() > longestPath.length()) {
+                    longestPath = p;
+                }
+            }
+        }
+        return longestPath;
     }
 
 }

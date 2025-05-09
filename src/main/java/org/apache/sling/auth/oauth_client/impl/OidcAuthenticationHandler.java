@@ -105,8 +105,6 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
 
     private final LoginCookieManager loginCookieManager;
 
-    private final String defaultRedirect;
-
     private final String defaultConnectionName;
 
     private final UserInfoProcessor userInfoProcessor;
@@ -114,6 +112,8 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
     private final boolean userInfoEnabled;
 
     private boolean pkceEnabled;
+
+    private final String[] path;
 
     private final boolean checkNonce;
 
@@ -126,7 +126,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         @AttributeDefinition(name = "Path",
                 description = "Repository path for which this authentication handler should be used by Sling. If this is " +
                         "empty, the authentication handler will be disabled. By default this is set to \"/\".")
-        String path() default "/";
+        String[] path() default {"/"};
 
         @AttributeDefinition(name = "Sync Handler Configuration Name",
                 description = "Name of Sync Handler Configuration")
@@ -135,10 +135,6 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         @AttributeDefinition(name = "Callback URI",
                 description = "Callback URI")
         String callbackUri() default "callbackUri";
-
-        @AttributeDefinition(name = "Default Redirect",
-                description = "Default Redirect")
-        String defaultRedirect() default "/";
 
         @AttributeDefinition(name = "Default Connection Name",
                 description = "Default Connection Name")
@@ -172,13 +168,13 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         this.stateManager = stateManager;
         this.idp = config.idp();
         this.callbackUri = config.callbackUri();
-        this.defaultRedirect = config.defaultRedirect();
         this.loginCookieManager = loginCookieManager;
         this.defaultConnectionName = config.defaultConnectionName();
         this.userInfoProcessor = userInfoProcessor;
         this.userInfoEnabled = config.userInfoEnabled();
         this.checkNonce = config.checkNonce();
         this.pkceEnabled = config.pkceEnabled();
+        this.path = config.path();
 
         logger.debug("activate: registering ExternalIdentityProvider");
         bundleContext.registerService(
@@ -213,18 +209,19 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         Cookie stateCookie;
         Cookie nonceCookie;
         Cookie codeVerifierCookie = null;
+        AuthorizationResponse authResponse;
         try {
-            AuthorizationResponse authResponse = AuthorizationResponse.parse(new URI(requestURL.toString()));
+            authResponse = AuthorizationResponse.parse(new URI(requestURL.toString()));
             clientState = extractClientState(authResponse);
-            authCode = extractAuthCode(authResponse);
-            stateCookie = extractStateCookie(request);
-            nonceCookie = extractNonceCookie(request);
-            if (pkceEnabled) {
-                codeVerifierCookie = extractCodeVerifierCookie(request); //TODO: Thow exception if not found
-            }
         } catch (ParseException | URISyntaxException | IllegalStateException e) {
-            logger.debug("Failed to parse authorization response");
+            // If we fail parsing the response, we consider the request not for this authentication handler
+            //The request may have some parameters that are not relevant for this authentication handler
             return null;
+        }
+        authCode = extractAuthCode(authResponse);
+        stateCookie = extractCookie(request, OAuthStateManager.COOKIE_NAME_REQUEST_KEY);
+        if (pkceEnabled) {
+            codeVerifierCookie = extractCookie(request, OAuthStateManager.COOKIE_NAME_CODE_VERIFIER); //TODO: Thow exception if not found
         }
 
         //2. Check if the State cookie match with the state in the request received from the idp
@@ -250,8 +247,12 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         TokenResponse tokenResponse = extractTokenResponse(authCode, conn, callbackUri, codeVerifierCookie);
 
         // 5. Validate the ID token
-        String nonce = nonceCookie.getValue();
-        IDTokenClaimsSet claims = validateIdToken(tokenResponse, conn, new Nonce(nonce) );
+        Nonce nonce = null;
+        if (checkNonce) {
+            nonceCookie = extractCookie(request, OAuthStateManager.COOKIE_NAME_NONCE); //TODO: Thow exception if not found
+            nonce = new Nonce(nonceCookie.getValue());
+        }
+        IDTokenClaimsSet claims = validateIdToken(tokenResponse, conn, nonce );
 
         // 6. Make the request to userInfo
         String subject = claims.getSubject().getValue();
@@ -263,20 +264,6 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
 
         logger.info("User {} authenticated", subject);
         return authInfo;
-    }
-
-    private Cookie extractCodeVerifierCookie(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            throw new IllegalStateException("Failed state check: No Code verifier cookie found");
-        }
-        for (Cookie cookie : cookies) {
-            if (OAuthStateManager.COOKIE_NAME_CODE_VERIFIER.equals(cookie.getName())) {
-                return cookie;
-            }
-        }
-        throw new IllegalStateException(String.format("Failed state check: No request cookie named %s found", OAuthStateManager.COOKIE_NAME_CODE_VERIFIER));
-
     }
 
     private @NotNull OidcAuthCredentials extractCredentials(@NotNull OidcConnectionImpl connection, @NotNull String subject, @NotNull TokenResponse tokenResponse) {
@@ -333,6 +320,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
     private @NotNull TokenResponse extractTokenResponse(@NotNull String authCode, @NotNull ResolvedOidcConnection conn,
                                                                @NotNull String callbackUri, Cookie codeVerifierCookie) {
         if (pkceEnabled && codeVerifierCookie == null) {
+            //This line of code should never be executed.
             throw new IllegalStateException("PKCE is enabled but no code verifier cookie found");
         }
 
@@ -400,30 +388,17 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         }
 
     }
-    private static @NotNull Cookie extractStateCookie(@NotNull HttpServletRequest request) {
+    private static @NotNull Cookie extractCookie(@NotNull HttpServletRequest request, String cookieName) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
             throw new IllegalStateException("Failed state check: No cookies found");
         }
         for (Cookie cookie : cookies) {
-            if (OAuthStateManager.COOKIE_NAME_REQUEST_KEY.equals(cookie.getName())) {
+            if (cookieName.equals(cookie.getName())) {
                 return cookie;
             }
         }
-        throw new IllegalStateException(String.format("Failed state check: No request cookie named %s found", OAuthStateManager.COOKIE_NAME_REQUEST_KEY));
-    }
-
-    private static @NotNull Cookie extractNonceCookie(@NotNull HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            throw new IllegalStateException("Failed state check: No cookies found");
-        }
-        for (Cookie cookie : cookies) {
-            if (OAuthStateManager.COOKIE_NAME_NONCE.equals(cookie.getName())) {
-                return cookie;
-            }
-        }
-        throw new IllegalStateException(String.format("Failed state check: No request cookie named %s found", OAuthStateManager.COOKIE_NAME_NONCE));
+        throw new IllegalStateException(String.format("Failed state check: No request cookie named %s found", cookieName));
     }
 
     /**
@@ -451,10 +426,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             URL jwkSetURL = conn.jwkSetURL().toURL();
 
             IDTokenValidator validator = new IDTokenValidator(issuer, clientID, jwsAlg, jwkSetURL);
-            if (checkNonce)
-                return validator.validate(tokenResponse.toSuccessResponse().getTokens().toOIDCTokens().getIDToken(), nonce);
-            else
-                return validator.validate(tokenResponse.toSuccessResponse().getTokens().toOIDCTokens().getIDToken(), null);
+            return validator.validate(tokenResponse.toSuccessResponse().getTokens().toOIDCTokens().getIDToken(), nonce);
         } catch (BadJOSEException | JOSEException | MalformedURLException e) {
             logger.error("Failed to validate token: {}", e.getMessage(), e);
             throw new RuntimeException(e.getMessage());
@@ -482,6 +454,13 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
     @Override
     public boolean requestCredentials(@NotNull HttpServletRequest request, @NotNull HttpServletResponse response) {
         logger.debug("inside requestCredentials");
+
+        AuthenticationInfo authInfo = loginCookieManager.verifyLoginCookie(request);
+        if (authInfo != null) {
+            // User has a valid sling login token
+            return true;
+        }
+
         String desiredConnectionName = request.getParameter("c");
         if ( desiredConnectionName == null ) {
             logger.debug("Missing mandatory request parameter 'c' using default connection");
@@ -520,13 +499,14 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         String redirect = request.getParameter(OAuthStateManager.PARAMETER_NAME_REDIRECT);
         String perRequestKey = new Identifier().getValue();
 
+        String originalRequestUri = request.getRequestURI();
         if (checkNonce) {
             Nonce nonce = new Nonce(new Identifier().getValue());
             State state = stateManager.toNimbusState(new OAuthState(perRequestKey, connection.name(), redirect, nonce.getValue()));
-            return RedirectHelper.buildRedirectTarget(clientID, conn.authorizationEndpoint(), conn.scopes(), conn.additionalAuthorizationParameters(), state, perRequestKey, redirectUri, pkceEnabled, nonce.getValue());
+            return RedirectHelper.buildRedirectTarget(path, originalRequestUri, clientID, conn.authorizationEndpoint(), conn.scopes(), conn.additionalAuthorizationParameters(), state, perRequestKey, redirectUri, pkceEnabled, nonce.getValue());
         } else {
             State state = stateManager.toNimbusState(new OAuthState(perRequestKey, connection.name(), redirect, null));
-            return RedirectHelper.buildRedirectTarget(clientID, conn.authorizationEndpoint(), conn.scopes(), conn.additionalAuthorizationParameters(), state, perRequestKey, redirectUri, pkceEnabled, null);
+            return RedirectHelper.buildRedirectTarget(path, originalRequestUri, clientID, conn.authorizationEndpoint(), conn.scopes(), conn.additionalAuthorizationParameters(), state, perRequestKey, redirectUri, pkceEnabled, null);
         }
     }
 
@@ -546,6 +526,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         if (loginCookieManager.getLoginCookie(request) !=null) {
             // A valid login cookie has been sent
             // According to AuthenticationFeedbackHandler javadoc we send because we did not send a redirect to the user
+            deleteAuthenticationCookies(request.getRequestURI(), response);
             return false;
         }
 
@@ -560,19 +541,44 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                 }
             }
 
+            String redirectUrl = null;
+            Cookie redirectCookie = extractCookie(request, OAuthStateManager.COOKIE_NAME_REDIRECT_URI);
+            redirectUrl = redirectCookie.getValue();
+
+            deleteAuthenticationCookies(request.getRequestURL().toString(), response);
             try {
-                Object redirect = request.getAttribute(REDIRECT_ATTRIBUTE_NAME);
-                if (redirect instanceof String) {
-                    response.sendRedirect(redirect.toString());
-                } else {
-                    response.sendRedirect(defaultRedirect);
-                }
+                response.sendRedirect(redirectUrl);
             } catch (IOException e) {
-                logger.error("Error while redirecting to default redirect: {}", e.getMessage(), e);
+                logger.error("Error while redirecting to redirect url: "+redirectUrl, e.getMessage(), e);
                 throw new RuntimeException(e);
             }
         }
         return true;
     }
+
+    private void deleteAuthenticationCookies(String requestUri, HttpServletResponse response) {
+        deleteCookie(requestUri, response, OAuthStateManager.COOKIE_NAME_REQUEST_KEY);
+        deleteCookie(requestUri, response, OAuthStateManager.COOKIE_NAME_REDIRECT_URI);
+        if (pkceEnabled) {
+            deleteCookie(requestUri, response, OAuthStateManager.COOKIE_NAME_CODE_VERIFIER);
+        }
+        if (checkNonce) {
+            deleteCookie(requestUri, response, OAuthStateManager.COOKIE_NAME_NONCE);
+        }
+    }
+
+    private void deleteCookie(String requestUri, HttpServletResponse response, String cookieName) {
+        Cookie cookie = new Cookie(cookieName, null);
+        cookie.setMaxAge(0); // Marks the cookie for deletion
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        // Remark that the j_security_check is added to the request. We need to exclude the last two parts of the path
+//        int lastSlashIndex = requestUri.lastIndexOf('/');
+//        int secondLastSlashIndex = requestUri.lastIndexOf('/', lastSlashIndex - 1);
+//        String path = secondLastSlashIndex > 0 ? requestUri.substring(0, secondLastSlashIndex) : "/";
+        cookie.setPath(RedirectHelper.findLongestPathMatching(path, requestUri));
+        response.addCookie(cookie);
+    }
+
 
 }
