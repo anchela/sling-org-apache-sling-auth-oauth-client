@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.servlet.http.Cookie;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,7 +48,11 @@ class RedirectHelper {
                                                        @Nullable List<String> additionalAuthorizationParameters, @NotNull State state,
                                                        @NotNull String perRequestKey, @NotNull URI redirectUri, boolean pkceEnabled, @Nullable String nonce) {
 
-        String path = findLongestPathMatching(paths, originaRedirectTarget);
+        String path = null;
+        if (originaRedirectTarget != null) {
+            path = findLongestPathMatching(paths, originaRedirectTarget);
+        }
+
         ArrayList<Cookie> cookies = new ArrayList<>();
         Cookie requestKeyCookie = buildCookie(path, OAuthStateManager.COOKIE_NAME_REQUEST_KEY, perRequestKey);
         cookies.add(requestKeyCookie);
@@ -99,27 +104,40 @@ class RedirectHelper {
     }
 
     
-    private static @NotNull Cookie buildCookie(@NotNull String path, @NotNull String name, @NotNull String perRequestKey) {
+    private static @NotNull Cookie buildCookie(@Nullable String path, @NotNull String name, @NotNull String perRequestKey) {
         Cookie cookie = new Cookie(name, perRequestKey);
         cookie.setHttpOnly(true);
         cookie.setSecure(true);
         cookie.setMaxAge(COOKIE_MAX_AGE_SECONDS);
-        cookie.setPath(path);
+        if (path !=null)
+            cookie.setPath(path);
         return cookie;
     }
 
-    public static String findLongestPathMatching(String[] path, String url) {
-        if (path == null || path.length == 0) {
+    public static String findLongestPathMatching(@NotNull String[] path,@Nullable String url) {
+
+        if (url == null || url.isEmpty()) {
             return null;
         }
 
-        if (url == null && path.length ==1) {
+        String urlPath= null;
+        try {
+            urlPath = new URI(url).getPath();
+        } catch (URISyntaxException e) {
+            return null;
+        }
+
+        if (path.length == 0) {
+            return null;
+        }
+
+        if ((urlPath == null || urlPath.isEmpty()) && path.length == 1) {
             return path[0];
         }
 
         String longestPath = null;
         for (String p : path) {
-            if (url.startsWith(p)) {
+            if (urlPath.startsWith(p)) {
                 if (longestPath == null || p.length() > longestPath.length()) {
                     longestPath = p;
                 }
