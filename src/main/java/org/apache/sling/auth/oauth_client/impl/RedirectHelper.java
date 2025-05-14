@@ -40,7 +40,8 @@ class RedirectHelper {
     // At the same time, some OAuth user authentication flows take a long time due to 
     // consent, account selection, 2FA, etc. so we cannot make this too short.
     private static final int COOKIE_MAX_AGE_SECONDS = 300;
-    static Logger logger = LoggerFactory.getLogger(RedirectHelper.class);
+    private static final Logger logger = LoggerFactory.getLogger(RedirectHelper.class);
+    
     private RedirectHelper() {
         // Utility class
     }
@@ -115,7 +116,7 @@ class RedirectHelper {
         return cookie;
     }
 
-    public static String findLongestPathMatching(@NotNull String[] path,@Nullable String url) {
+    public static @Nullable String findLongestPathMatching(@NotNull String[] path,@Nullable String url) {
 
         if (url == null || url.isEmpty()) {
             return null;

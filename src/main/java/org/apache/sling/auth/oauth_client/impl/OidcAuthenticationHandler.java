@@ -550,14 +550,14 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
             try {
                 response.sendRedirect(redirectUrl);
             } catch (IOException e) {
-                logger.error("Error while redirecting to redirect url: "+redirectUrl, e.getMessage(), e);
+                logger.error("Error while redirecting to redirect url '{}': {}", redirectUrl, e.getMessage(), e);
                 throw new RuntimeException(e);
             }
         }
         return true;
     }
 
-    private void deleteAuthenticationCookies(String requestUri, HttpServletResponse response) {
+    private void deleteAuthenticationCookies(@NotNull String requestUri, @NotNull HttpServletResponse response) {
         deleteCookie(requestUri, response, OAuthStateManager.COOKIE_NAME_REQUEST_KEY);
         deleteCookie(requestUri, response, OAuthStateManager.COOKIE_NAME_REDIRECT_URI);
         if (pkceEnabled) {
@@ -568,7 +568,7 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         }
     }
 
-    private void deleteCookie(String requestUri, HttpServletResponse response, String cookieName) {
+    private void deleteCookie(@NotNull String requestUri, @NotNull HttpServletResponse response, @NotNull String cookieName) {
         Cookie cookie = new Cookie(cookieName, null);
         cookie.setMaxAge(0); // Marks the cookie for deletion
         cookie.setHttpOnly(true);
