@@ -220,10 +220,9 @@ class AuthorizationCodeFlowIT {
         HttpRequest renderLoginFormRequest = HttpRequest.newBuilder().uri(URI.create(locationHeaderValue)).build();
         HttpResponse<Stream<String>> renderLoginFormResponse = httpClient.send(renderLoginFormRequest, BodyHandlers.ofLines());
         List<String> matchingFormLines = renderLoginFormResponse.body()
-            .filter( line -> line.contains("id=\"kc-form-login\""))
-            .toList();
-        assertThat(matchingFormLines).as("lines matching form id").singleElement();
-        String formLine = matchingFormLines.get(0);
+                .filter(line -> line.contains("id=\"kc-form-login\""))
+                .collect(Collectors.toList());
+        assertThat(matchingFormLines).as("lines matching form id").singleElement();        String formLine = matchingFormLines.get(0);
         int actionAttrStart = formLine.indexOf("action=\"") + "action=\"".length();
         int actionAttrEnd = formLine.indexOf('"', actionAttrStart);
         
@@ -248,12 +247,12 @@ class AuthorizationCodeFlowIT {
         URI redirectUri = URI.create(authResponseLocationHeader.get());
         System.out.println(redirectUri.getRawPath()+"?" + redirectUri.getRawQuery());
         List<NameValuePair> params = Arrays.stream(redirectUri.getRawQuery().split("&"))
-            .map( s -> {
-                var parts = s.split("=");
-                return (NameValuePair) new BasicNameValuePair(parts[0], URLDecoder.decode(parts[1], StandardCharsets.UTF_8));
-            })
-            .toList();
-        
+                .map(s -> {
+                    String[] parts = s.split("=");
+                    return new BasicNameValuePair(parts[0], URLDecoder.decode(parts[1], StandardCharsets.UTF_8));
+                })
+                .collect(Collectors.toList());
+
         List<Header> headers = new ArrayList<>();
         headers.add(new BasicHeader("Cookie", "sling.oauth-request-key=" + oauthRequestKey));
         sling.doGet(redirectUri.getRawPath(), params, headers, 204);
@@ -472,8 +471,8 @@ class AuthorizationCodeFlowIT {
         HttpRequest renderLoginFormRequest = HttpRequest.newBuilder().uri(URI.create(locationHeaderValue)).build();
         HttpResponse<Stream<String>> renderLoginFormResponse = httpClient.send(renderLoginFormRequest, BodyHandlers.ofLines());
         List<String> matchingFormLines = renderLoginFormResponse.body()
-                .filter( line -> line.contains("id=\"kc-form-login\""))
-                .toList();
+                .filter(line -> line.contains("id=\"kc-form-login\""))
+                .collect(Collectors.toList());
         assertThat(matchingFormLines).as("lines matching form id").singleElement();
         String formLine = matchingFormLines.get(0);
         int actionAttrStart = formLine.indexOf("action=\"") + "action=\"".length();
@@ -503,11 +502,11 @@ class AuthorizationCodeFlowIT {
         //Http Request on sling with code from keycloak. The login cookie (sling.oidcauth) will be created
         URI redirectUri = URI.create(authResponseLocationHeader.get());
         List<NameValuePair> params = Arrays.stream(redirectUri.getRawQuery().split("&"))
-                .map( s -> {
-                    var parts = s.split("=");
-                    return (NameValuePair) new BasicNameValuePair(parts[0], URLDecoder.decode(parts[1], StandardCharsets.UTF_8));
+                .map(s -> {
+                    String[] parts = s.split("=");
+                    return new BasicNameValuePair(parts[0], URLDecoder.decode(parts[1], StandardCharsets.UTF_8));
                 })
-                .toList();
+                .collect(Collectors.toList());
 
         headers = new ArrayList<>();
         StringBuilder cookieHeaderBuilder = new StringBuilder();

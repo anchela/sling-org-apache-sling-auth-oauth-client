@@ -17,6 +17,7 @@
 package org.apache.sling.auth.oauth_client;
 
 import org.jetbrains.annotations.NotNull;
+
 /**
  * Identifies an OAuth or OIDC connection
  * 
@@ -34,4 +35,10 @@ public interface ClientConnection {
      * @return the name of the connection
      */
     @NotNull String name();
+    String clientId();
+    String clientSecret();
+    String[] scopes();
+    String[] additionalAuthorizationParameters();
+    String tokenEndpoint();
+    String authorizationEndpoint();
 }

@@ -105,7 +105,7 @@ public class OAuthEntryPointServlet extends SlingAllMethodsServlet {
         ResolvedConnection conn = ResolvedOAuthConnection.resolve(connection);
 
         // The client ID provisioned by the OpenID provider when
-        // the client was registered is stored in the connection.
+        // the client was registered. It is stored in the connection.
 
         String redirect = request.getParameter(OAuthStateManager.PARAMETER_NAME_REDIRECT);
         String perRequestKey = new Identifier().getValue();

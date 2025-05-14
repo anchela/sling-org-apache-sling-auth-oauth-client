@@ -532,7 +532,8 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
         }
 
         Object creds = authInfo.get(JcrResourceConstants.AUTHENTICATION_INFO_CREDENTIALS);
-        if (creds instanceof OidcAuthCredentials oidcAuthCredentials) {
+        if (creds instanceof OidcAuthCredentials) {
+            OidcAuthCredentials oidcAuthCredentials = (OidcAuthCredentials) creds;
             Object tokenValueObject = oidcAuthCredentials.getAttribute(".token");
             if (tokenValueObject != null && !tokenValueObject.toString().isEmpty()) {
                 String token = tokenValueObject.toString();

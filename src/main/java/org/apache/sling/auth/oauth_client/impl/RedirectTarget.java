@@ -22,6 +22,21 @@ import javax.servlet.http.Cookie;
 import java.net.URI;
 import java.util.List;
 
-record RedirectTarget(@NotNull URI uri, @NotNull List<Cookie> cookies) {
-    
+public class RedirectTarget {
+
+    private final @NotNull URI uri;
+    private final @NotNull List<Cookie> cookies;
+
+    public RedirectTarget(@NotNull URI uri, @NotNull List<Cookie> cookies) {
+        this.uri = uri;
+        this.cookies = cookies;
+    }
+
+    public @NotNull URI uri() {
+        return uri;
+    }
+
+    public @NotNull List<Cookie> cookies() {
+        return cookies;
+    }
 }
