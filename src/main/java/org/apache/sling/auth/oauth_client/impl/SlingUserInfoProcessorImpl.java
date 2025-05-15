@@ -17,14 +17,18 @@
  */
 package org.apache.sling.auth.oauth_client.impl;
 
+import com.nimbusds.oauth2.sdk.ParseException;
 import com.nimbusds.oauth2.sdk.TokenResponse;
 import com.nimbusds.openid.connect.sdk.claims.UserInfo;
+import net.minidev.json.JSONObject;
+import net.minidev.json.JSONValue;
 import net.minidev.json.JSONArray;
 import org.apache.sling.auth.oauth_client.spi.OidcAuthCredentials;
 import org.apache.sling.auth.oauth_client.spi.UserInfoProcessor;
 import org.apache.sling.commons.crypto.CryptoService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -77,8 +81,25 @@ public class SlingUserInfoProcessorImpl implements UserInfoProcessor {
     CryptoService cryptoService;
 
     @Override
-    public @NotNull OidcAuthCredentials process(@Nullable UserInfo userInfo, @NotNull TokenResponse tokenResponse, 
+    public @NotNull OidcAuthCredentials process(@Nullable String stringUserInfo, @NotNull String stringTokenResponse,
                                                 @NotNull String oidcSubject, @NotNull String idp) {
+
+        JSONObject jsonTokenResponse = (JSONObject) JSONValue.parse(stringTokenResponse);
+        TokenResponse tokenResponse = null;
+        try {
+            tokenResponse = TokenResponse.parse(jsonTokenResponse);
+        } catch (ParseException e) {
+            throw new RuntimeException("Failed to parse TokenResponse in UserInfoProcessor", e);
+        }
+
+        UserInfo userInfo = null;
+        if (stringUserInfo != null) {
+            try {
+                userInfo = UserInfo.parse(stringUserInfo);
+            } catch (ParseException e) {
+                throw new RuntimeException("Failed to parse UserInfo in UserInfoProcessor", e);
+            }
+        }
 
         OAuthTokens tokens = Converter.toSlingOAuthTokens(tokenResponse.toSuccessResponse().getTokens());
 
@@ -126,5 +147,4 @@ public class SlingUserInfoProcessorImpl implements UserInfoProcessor {
 
         return credentials;
     }
-
 }

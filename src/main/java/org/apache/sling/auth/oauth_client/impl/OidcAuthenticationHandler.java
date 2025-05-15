@@ -285,14 +285,14 @@ public class OidcAuthenticationHandler extends DefaultAuthenticationFeedbackHand
                 UserInfo userInfo = userInfoResponse.toSuccessResponse().getUserInfo();
 
                 //process credentials
-                return userInfoProcessor.process(userInfo, tokenResponse, subject, idp);
+                return userInfoProcessor.process(userInfo.toJSONObject().toJSONString(), tokenResponse.toSuccessResponse().toJSONObject().toJSONString(), subject, idp);
 
             } catch (IOException | URISyntaxException | ParseException e) {
                 logger.error("Error while processing UserInfo: {}", e.getMessage(), e);
                 throw new RuntimeException(e);
             }
         } else {
-            return userInfoProcessor.process(null, tokenResponse, subject, idp);
+            return userInfoProcessor.process(null, tokenResponse.toSuccessResponse().toSuccessResponse().toJSONObject().toJSONString(), subject, idp);
         }
     }
 
